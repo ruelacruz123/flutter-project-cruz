@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Checks if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper: Checks if user document states role == 'teacher'
+    function isTeacher() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // Helper: Checks if the student matches their authenticated ID
+    function isStudentOwner(studentId) {
+      return isAuthenticated() && (
+        request.auth.uid == studentId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.student_id == studentId
+      );
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
+      allow write: if isTeacher(); // Only teacher accounts can allocate roles
+    }
+
+    // 2. Students collection
+    match /students/{studentId} {
+      allow read: if isAuthenticated() && (isStudentOwner(studentId) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    // 3. Academic records collections (quizzes, exams, activities, attendance, oral, projects)
+    match /quizzes/{quizId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    match /exams/{examId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    match /activities/{activityId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    match /oral/{oralId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (isStudentOwner(resource.data.student_id) || isTeacher());
+      allow write: if isTeacher();
+    }
+
+    // 4. Todos collection (Personal checklists - both Student and Teacher can CRUD their own)
+    match /todos/{todoId} {
+      allow read, write: if isAuthenticated() && (
+        resource == null || 
+        resource.data.user_id == request.auth.uid ||
+        request.resource.data.user_id == request.auth.uid
+      );
+    }
+  }
+}
